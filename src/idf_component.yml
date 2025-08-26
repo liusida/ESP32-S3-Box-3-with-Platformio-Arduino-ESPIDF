@@ -1,0 +1,4 @@
+dependencies:
+  espressif/esp-box-3: "*"
+  lvgl/lvgl:
+    version: "8.3.11"
