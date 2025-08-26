@@ -1,0 +1,6 @@
+.vscode
+.pio
+managed_components
+CMakeLists.txt
+sdkconfig.dictionary
+dependencies.lock
