@@ -3,6 +3,9 @@
 #define LV_CONF_H
 // #warning "Using my own lv_conf.h"
 
+#define LV_COLOR_DEPTH 16
+#define LV_COLOR_16_SWAP 1
+
 #define LV_FONT_MONTSERRAT_12	1
 #define LV_FONT_MONTSERRAT_14	1
 #define LV_FONT_MONTSERRAT_16	1
