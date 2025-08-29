@@ -161,7 +161,7 @@
  
      Serial.printf("Connected to: %s RSSI: %d\n", pClient->getPeerAddress().toString().c_str(), pClient->getRssi());
      
-     pClient->secureConnection(); // This avoid write error 261 (insufficient auth)!
+     pClient->secureConnection(); // This fixes write error 261 (insufficient auth)! or in ESP-IDF stack, call `ble_gap_security_initiate(uint16_t conn_handle);`
  
      /** Now we can read/write/subscribe the characteristics of the services we are interested in */
      NimBLERemoteService*        pSvc = nullptr;
