@@ -9,8 +9,8 @@
 static const uint8_t TX = 43;
 static const uint8_t RX = 44;
 
-static const uint8_t SDA = 41;
-static const uint8_t SCL = 40;
+static const uint8_t SDA = 8; // GT911 BSP_I2C_SDA
+static const uint8_t SCL = 18; // GT911 BSP_I2C_SCL
 
 static const uint8_t SS = 10;
 static const uint8_t MOSI = 11;

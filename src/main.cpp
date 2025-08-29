@@ -7,20 +7,30 @@
 #include <utility>
 
 #include "ui/ui.h"           // SquareLine export (ui_init)
-#include "BLE/BleKeyboardHost.h"
 #include "esp_heap_caps.h"
+
 #include "TFT_eSPI.h"
-#include "SPI.h"
+#include "GT911.h"
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+// ============================================================================
+// PIN DEFINITIONS
+// ============================================================================
 
+// Touch pin definitions for ESP32-S3-Box-3
+#define TOUCH_INT_PIN      3   // BSP_LCD_TOUCH_INT
+#define I2C_SDA_PIN        8   // BSP_I2C_SDA  
+#define I2C_SCL_PIN        18  // BSP_I2C_SCL
+
+// Touch configuration
+#define TOUCH_I2C_ADDR     0x5D  // GT911 default address
+#define TOUCH_I2C_FREQ     100000  // 100kHz for compatibility
+ 
 // ============================================================================
 // GLOBAL VARIABLES
 // ============================================================================
 
 TFT_eSPI tft = TFT_eSPI();
+GT911 gt911 = GT911();
 
 // LVGL Display Buffers - Double buffering for smooth graphics
 // Buffer size: 320 pixels wide × 40 lines high × 2 bytes per pixel = 25,600 bytes
@@ -36,9 +46,9 @@ static lv_disp_drv_t disp_drv;
 // ============================================================================
 
 static void dumpHeap(const char* tag);
-void initTFTDisplay();
 void initLVGL();
-void initUI();
+void initTouch();
+void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data);
 
 // ============================================================================
 // LVGL DISPLAY FLUSH CALLBACK
@@ -110,47 +120,14 @@ void manualResetAndBacklight()
     // ESP-Box-3: Handle inverted reset logic manually
     Serial.println("Handling ESP-Box-3 inverted reset sequence...");
     pinMode(48, OUTPUT);  // Manual reset pin (ESP-Box-3 BSP)
-    digitalWrite(48, HIGH);   // Reset pin is active LOW for ESP-Box-3
+    digitalWrite(48, HIGH);
     delay(100);
-    digitalWrite(48, LOW);    // Pull reset LOW to reset the display
+    digitalWrite(48, LOW);
     delay(100);
     Serial.println("Turn on backlight");
     pinMode(TFT_BL, OUTPUT);
     digitalWrite(TFT_BL, HIGH);
     Serial.println("Backlight turned on");
-}
-
-// ============================================================================
-// TFT DISPLAY INITIALIZATION
-// ============================================================================
-
-void initTFTDisplay()
-{
-    Serial.println("Initializing TFT display...");
-        
-    // Initialize SPI for TFT
-    //SPI.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, TFT_CS);
-    
-    // Initialize TFT display
-    Serial.println("Calling tft.begin()...");
-    tft.begin();
-    tft.setRotation(4); // Landscape orientation
-    
-    // Test basic TFT functionality
-    Serial.println("Testing TFT with colors...");
-    tft.fillScreen(TFT_RED);
-    Serial.println("Red screen drawn");
-    delay(1000);
-    tft.fillScreen(TFT_GREEN);
-    Serial.println("Green screen drawn");
-    delay(1000);
-    tft.fillScreen(TFT_BLUE);
-    Serial.println("Blue screen drawn");
-    delay(1000);
-    tft.fillScreen(TFT_BLACK);
-    Serial.println("Black screen drawn");
-
-    Serial.println("TFT display initialized successfully");
 }
 
 // ============================================================================
@@ -174,26 +151,79 @@ void initLVGL()
     disp_drv.ver_res = 240;           // Display height
     disp_drv.flush_cb = my_disp_flush; // Our callback function
     disp_drv.draw_buf = &draw_buf;     // Use our buffers
-    lv_disp_drv_register(&disp_drv);   // Register the driver
+    lv_disp_t * disp = lv_disp_drv_register(&disp_drv);   // Register the driver
+    
+    // Create input device for touch
+    static lv_indev_drv_t indev_drv;
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = touch_read_cb;
+    indev_drv.disp = disp;
+    lv_indev_drv_register(&indev_drv);
     
     Serial.println("LVGL initialized successfully");
 }
 
 // ============================================================================
-// USER INTERFACE INITIALIZATION
+// TOUCH INITIALIZATION
 // ============================================================================
 
-void initUI()
+
+void initTouch()
 {
-    Serial.println("Initializing User Interface...");
+    Serial.println("Initializing touch controller...");
     
-    // Initialize SquareLine Studio generated UI
-    ui_init();
+    // Initialize GT911 touch controller
+    if (gt911.begin(TS_IRQ)) {
+        Serial.println("✅ GT911 touch initialized successfully!");
+        
+        // Print device info
+        GTInfo* info = gt911.readInfo();
+        if (info) {
+            Serial.printf("Product: %s, FW: 0x%04X, Resolution: %dx%d\n", 
+                         info->productId, info->fwId, info->xResolution, info->yResolution);
+        }
+    } else {
+        Serial.println("❌ GT911 initialization failed!");
+        delay(10000);
+        return;
+    }
+}
+
+// ============================================================================
+// LVGL TOUCH READ CALLBACK
+// ============================================================================
+
+void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
+{
+    // Use the standard polling approach as intended by the GT911 library
+    uint8_t touches = gt911.touched(GT911_MODE_INTERRUPT);
     
-    // Load the splash screen
-    lv_scr_load(ui_Splash);
-    
-    Serial.println("User Interface initialized successfully");
+    if (touches > 0) {
+        Serial.println("Touch detected");
+        // Get touch points
+        GTPoint* tp = gt911.getPoints();
+        
+        // Use first touch point
+        uint16_t x = tp[0].x;
+        uint16_t y = tp[0].y;
+        
+        // Transform coordinates for rotation 3 (landscape, 270° clockwise)
+        // For rotation 3: touch coordinates need to be mapped correctly
+        // Original touch: (0,0) at top-left, (320,240) at bottom-right
+        // After rotation 3: (0,0) at top-right, (240,320) at bottom-left
+        uint16_t transformed_x = 240 - y;  // Touch Y becomes display X, inverted
+        uint16_t transformed_y = x;        // Touch X becomes display Y
+        
+        data->point.x = transformed_x;
+        data->point.y = transformed_y;
+        data->state = LV_INDEV_STATE_PRESSED;
+        
+        // Debug output to verify coordinate mapping
+        Serial.printf("Touch: (%d,%d) -> Display: (%d,%d)\n", x, y, transformed_x, transformed_y);
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
 }
 
 // ============================================================================
@@ -212,7 +242,9 @@ void setup()
     manualResetAndBacklight();
 
     // Initialize TFT display
-    initTFTDisplay();
+    tft.begin();
+    tft.setRotation(3); // Landscape orientation
+
     
     // Initialize LVGL graphics library
     initLVGL();
@@ -220,19 +252,14 @@ void setup()
     // Monitor memory before UI initialization
     dumpHeap("Before UI init");
 
-    // Initialize user interface
-    initUI();
-
-    // Create a simple rectangle at [0,0] to [100,100]
-    lv_obj_t * rect = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(rect, 100, 100);  // Width: 100, Height: 100
-    lv_obj_set_pos(rect, 0, 0);       // Position at [0,0]
+    // Initialize SquareLine Studio generated UI
+    ui_init();
     
-    // Style the rectangle
-    lv_obj_set_style_bg_color(rect, lv_color_hex(0xFF0000), 0);  // Red background
-    lv_obj_set_style_border_width(rect, 2, 0);                    // 2px border
-    lv_obj_set_style_border_color(rect, lv_color_hex(0xFFFFFF), 0); // White border
-    lv_obj_set_style_radius(rect, 0, 0);         
+    // Load the splash screen
+    lv_scr_load(ui_WIFI_Settings);
+
+    // Initialize touch controller
+    initTouch();
     
     Serial.println("Setup() completed successfully");
 }
@@ -245,6 +272,8 @@ void loop()
 {
     // Handle LVGL tasks (drawing, animations, events)
     lv_timer_handler();
+    
+    // No need to check touchDetected anymore - LVGL handles touch via callback
     
     // Increment LVGL tick for timing
     lv_tick_inc(5);
