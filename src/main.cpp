@@ -46,6 +46,7 @@ static lv_color_t buf2[320 * BUF_ROWS]; // Secondary buffer
 // LVGL Display Driver
 static lv_disp_drv_t disp_drv;
 
+lv_indev_t *g_keyboard_indev = nullptr;
 // ============================================================================
 // FUNCTION DECLARATIONS
 // ============================================================================
@@ -113,7 +114,7 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
   }
   str += "]";
   Serial.printf("%s\n", str.c_str());
-  
+
   bleKeyboardHost.parseHIDReport(pData, length);
 }
 
@@ -184,12 +185,12 @@ void initLVGL() {
   lv_disp_t *disp = lv_disp_drv_register(&disp_drv); // Register the driver
 
   // Create input device for touch
-  static lv_indev_drv_t indev_drv;
-  lv_indev_drv_init(&indev_drv);
-  indev_drv.type = LV_INDEV_TYPE_POINTER;
-  indev_drv.read_cb = touch_read_cb;
-  indev_drv.disp = disp;
-  lv_indev_drv_register(&indev_drv);
+  static lv_indev_drv_t touch_drv;
+  lv_indev_drv_init(&touch_drv);
+  touch_drv.type = LV_INDEV_TYPE_POINTER;
+  touch_drv.read_cb = touch_read_cb;
+  touch_drv.disp = disp;
+  lv_indev_drv_register(&touch_drv);
 
   // Create input device for keyboard
   static lv_indev_drv_t keyboard_drv;
@@ -197,7 +198,7 @@ void initLVGL() {
   keyboard_drv.type = LV_INDEV_TYPE_KEYPAD;
   keyboard_drv.read_cb = keyboard_read_cb;
   keyboard_drv.disp = disp;
-  lv_indev_drv_register(&keyboard_drv);
+  g_keyboard_indev = lv_indev_drv_register(&keyboard_drv);
 
   Serial.println("LVGL initialized successfully");
 }
@@ -283,7 +284,18 @@ void setup() {
 
   // Load the splash screen
   lv_scr_load(ui_WIFI_Settings);
- 
+
+      // Create a group for keyboard navigation
+      static lv_group_t *keyboard_group = lv_group_create();
+      lv_group_set_default(keyboard_group);
+      
+      // Add your input elements to the group
+      lv_group_add_obj(keyboard_group, ui_InputPassword);
+      lv_group_add_obj(keyboard_group, ui_InputSSIDs);
+      
+      // Assign the group to the keyboard input device
+      lv_indev_set_group(g_keyboard_indev, keyboard_group);
+
   Serial.println("Setup() completed successfully");
 }
 
