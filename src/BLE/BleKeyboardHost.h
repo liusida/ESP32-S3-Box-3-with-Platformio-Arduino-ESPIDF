@@ -1,35 +1,40 @@
 #pragma once
 
 #include <Arduino.h>
+#include <queue>
 #include <NimBLEDevice.h>
+
+#define UUID_HID_SERVICE NimBLEUUID((uint16_t)0x1812)
+#define UUID_REPORT NimBLEUUID((uint16_t)0x2A4D)
+#define APPEARANCE_KEYBOARD ((uint16_t)0x03C1)
+
+struct KeyEvent {
+    uint16_t keycode;
+    bool pressed;
+    uint32_t timestamp;
+};
 
 class BleKeyboardHost {
 public:
-    // Start the background process
-    void begin();
-    
-    // Check if background process is complete
-    bool isReady() const;
-    
-    // Get current step status
-    enum class Step {
-        IDLE,
-        SCANNING,
-        FILTERING_DEVICES,
-        CONNECTING,
-        DISCOVERING_SERVICES,
-        SUBSCRIBING,
-        READY,
-        ERROR
-    };
-    
-    Step getCurrentStep() const;
-    
-    // Manual control (optional)
-    void reset();
-    
-    // Data access
-    std::vector<BleDevice> getDiscoveredDevices() const;
-    bool isConnected() const;
-    KeyEvent getNextKeyEvent();  // Get keyboard input
+    BleKeyboardHost();
+    void begin(uint32_t scanTimeMs = 1000);
+    void tick();
+    void setNotifyCB(void (*notifyCB)(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify));
+
+    bool connectToServer();
+
+    // New methods for key handling
+    bool hasKey();
+    KeyEvent getKey();
+    void parseHIDReport(uint8_t* data, size_t length);
+    uint16_t convertHIDToLVGL(uint8_t hidKey);
+
+    bool m_doConnect;
+    bool m_isConnected;
+    const NimBLEAdvertisedDevice *m_advDevice;
+    uint32_t m_scanTimeMs;
+
+private:
+    std::queue<KeyEvent> keyQueue;
+    void (*m_notifyCB)(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
 };

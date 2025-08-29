@@ -1,6 +1,0 @@
-#include "BleKeyboardHost.h"
-
-const NimBLEUUID BleKeyboardHost::UUID_HID_SERVICE((uint16_t)0x1812);
-const NimBLEUUID BleKeyboardHost::UUID_REPORT((uint16_t)0x2A4D);
-BleKeyboardHost* BleKeyboardHost::instance = nullptr;
-
