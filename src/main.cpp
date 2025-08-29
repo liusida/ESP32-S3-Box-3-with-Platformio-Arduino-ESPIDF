@@ -34,9 +34,10 @@ GT911 gt911 = GT911();
 
 // LVGL Display Buffers - Double buffering for smooth graphics
 // Buffer size: 320 pixels wide × 40 lines high × 2 bytes per pixel = 25,600 bytes
+#define BUF_ROWS 40
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf1[320 * 40];  // Primary buffer
-static lv_color_t buf2[320 * 40];  // Secondary buffer
+static lv_color_t buf1[320 * BUF_ROWS];  // Primary buffer
+static lv_color_t buf2[320 * BUF_ROWS];  // Secondary buffer
 
 // LVGL Display Driver
 static lv_disp_drv_t disp_drv;
@@ -74,8 +75,9 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
     tft.startWrite();
     tft.setAddrWindow(area->x1, area->y1, w, h);
     
-    // Push the color data to the TFT display
-    tft.pushColors((uint16_t *)&color_p->full, w * h, true);
+    // Push pixels (not swapped colors) to the TFT display
+    tft.pushPixels((uint16_t *)color_p,
+        (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1));
     tft.endWrite();
 
     // Tell LVGL we're done flushing this area
@@ -143,7 +145,7 @@ void initLVGL()
     
     // Initialize display buffers for double buffering
     // This prevents flickering and enables smooth animations
-    lv_disp_draw_buf_init(&draw_buf, buf1, buf2, 320 * 40);
+    lv_disp_draw_buf_init(&draw_buf, buf1, buf2, 320 * BUF_ROWS);
     
     // Initialize and configure the display driver
     lv_disp_drv_init(&disp_drv);
@@ -207,20 +209,14 @@ void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
         // Use first touch point
         uint16_t x = tp[0].x;
         uint16_t y = tp[0].y;
-        
-        // Transform coordinates for rotation 3 (landscape, 270° clockwise)
-        // For rotation 3: touch coordinates need to be mapped correctly
-        // Original touch: (0,0) at top-left, (320,240) at bottom-right
-        // After rotation 3: (0,0) at top-right, (240,320) at bottom-left
-        uint16_t transformed_x = 240 - y;  // Touch Y becomes display X, inverted
-        uint16_t transformed_y = x;        // Touch X becomes display Y
-        
-        data->point.x = transformed_x;
-        data->point.y = transformed_y;
+
+        data->point.x = x;
+        data->point.y = y;
         data->state = LV_INDEV_STATE_PRESSED;
         
         // Debug output to verify coordinate mapping
-        Serial.printf("Touch: (%d,%d) -> Display: (%d,%d)\n", x, y, transformed_x, transformed_y);
+        // Serial.printf("Touch: (%d,%d) -> Display: (%d,%d)\n", x, y, transformed_x, transformed_y);
+        Serial.printf("Touch: (%d,%d)\n", x, y);
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
