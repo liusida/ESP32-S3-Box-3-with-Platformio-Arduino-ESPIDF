@@ -20,6 +20,7 @@
 #define TFT_CS   5   // BSP_LCD_CS
 #define TFT_DC   4   // BSP_LCD_DC
 #define TFT_RST  -1  // Reset handled manually in code (ESP-Box-3 inverted logic)
+#define TFT_BOX_3_RESET 48
 #define TFT_BL  47   // BSP_LCD_BACKLIGHT
 
 // Touch configuration (ESP-Box-3 has touch capability)

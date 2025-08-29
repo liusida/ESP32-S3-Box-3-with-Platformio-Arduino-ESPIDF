@@ -176,7 +176,7 @@ void initTouch()
     Serial.println("Initializing touch controller...");
     
     // Initialize GT911 touch controller
-    if (gt911.begin(TS_IRQ)) {
+    if (gt911.begin(TS_IRQ, TFT_BOX_3_RESET)) {
         Serial.println("✅ GT911 touch initialized successfully!");
         
         // Print device info
