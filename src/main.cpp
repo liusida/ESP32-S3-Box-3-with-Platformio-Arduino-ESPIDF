@@ -251,6 +251,60 @@ void keyboard_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 }
 
 // ============================================================================
+// SET KEYBOARD GROUP
+// ============================================================================
+void activateKeyboardGroupForScreen(lv_obj_t *screen);
+void addInputElementsRecursive(lv_obj_t *obj, lv_group_t *group);
+
+void switchToScreen(lv_obj_t *screen) {
+  lv_scr_load(screen);
+  activateKeyboardGroupForScreen(screen);
+}
+
+void activateKeyboardGroupForScreen(lv_obj_t *screen) {
+    // Create or get the keyboard group (create once, reuse)
+    static lv_group_t *keyboard_group = nullptr;
+    if (!keyboard_group) {
+        keyboard_group = lv_group_create();
+        lv_group_set_default(keyboard_group);
+    }
+    
+    // Clear existing objects from the group
+    lv_group_remove_all_objs(keyboard_group);
+    
+    // Recursively add all input elements to the group
+    addInputElementsRecursive(screen, keyboard_group);
+    
+    // Assign the group to the keyboard input device
+    lv_indev_set_group(g_keyboard_indev, keyboard_group);
+}
+
+void addInputElementsRecursive(lv_obj_t *obj, lv_group_t *group) {
+    if (!obj) return;
+    
+    // Check if this object is an input element using LVGL's class checking
+    if (lv_obj_check_type(obj, &lv_textarea_class) || 
+        lv_obj_check_type(obj, &lv_dropdown_class) ||
+        lv_obj_check_type(obj, &lv_spinbox_class) ||
+        lv_obj_check_type(obj, &lv_slider_class) ||
+        lv_obj_check_type(obj, &lv_checkbox_class) ||
+        lv_obj_check_type(obj, &lv_switch_class) ||
+        lv_obj_check_type(obj, &lv_btnmatrix_class) ||
+        lv_obj_check_type(obj, &lv_roller_class)) {
+        
+        lv_group_add_obj(group, obj);
+        Serial.printf("Added input element to keyboard group\n");
+    }
+    
+    // Recursively check all children using LVGL's public API
+    uint32_t child_count = lv_obj_get_child_cnt(obj);
+    for (uint32_t i = 0; i < child_count; i++) {
+        lv_obj_t *child = lv_obj_get_child(obj, i);
+        addInputElementsRecursive(child, group);
+    }
+}
+
+// ============================================================================
 // MAIN SETUP FUNCTION
 // ============================================================================
 
@@ -282,19 +336,7 @@ void setup() {
   bleKeyboardHost.setNotifyCB(notifyCB);
   bleKeyboardHost.begin();
 
-  // Load the splash screen
-  lv_scr_load(ui_WIFI_Settings);
-
-      // Create a group for keyboard navigation
-      static lv_group_t *keyboard_group = lv_group_create();
-      lv_group_set_default(keyboard_group);
-      
-      // Add your input elements to the group
-      lv_group_add_obj(keyboard_group, ui_InputPassword);
-      lv_group_add_obj(keyboard_group, ui_InputSSIDs);
-      
-      // Assign the group to the keyboard input device
-      lv_indev_set_group(g_keyboard_indev, keyboard_group);
+  switchToScreen(ui_WIFI_Settings);
 
   Serial.println("Setup() completed successfully");
 }
